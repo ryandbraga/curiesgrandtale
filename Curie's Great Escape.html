@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Curie's Great Escape</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f4efe6;--fg:#2b2a33;--panel:#fff;--bd:#cfc6b4}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1f27;--fg:#eee;--panel:#2a2d38;--bd:#444}}
+:root[data-theme="dark"]{--bg:#1d1f27;--fg:#eee;--panel:#2a2d38;--bd:#444}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS",Verdana,sans-serif;text-align:center}
+h1{margin:8px 0;font-size:22px}
+#wrap{position:relative;max-width:800px;margin:auto}
+canvas{width:100%;display:block;border:2px solid var(--bd);border-radius:8px;touch-action:none}
+#msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(20,20,40,.85);color:#fff;border-radius:8px;padding:16px}
+#msg p{max-width:560px;font-size:14px;line-height:1.4}
+button{background:var(--panel);color:var(--fg);border:2px solid var(--bd);border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+#pad{display:flex;gap:10px;justify-content:center;margin:10px}
+#pad button{width:90px;height:54px;font-size:22px;user-select:none;touch-action:none}
+small{opacity:.7}
+</style></head><body>
+<h1>🧪 Curie's Great Escape</h1>
+<div id="wrap"><canvas id="c" width="800" height="400"></canvas>
+<div id="msg"><h2>Curie's Great Escape</h2>
+<p>Marc Greenberg wants Daniel Liu and Jordan Lamar on his solid phase PARP project forever. Curie Lee must climb NCB from the 1st to the 3rd floor, synthesize thiol-cholesterol, dodge classes and a mountain of orgo grading, then rescue her friends without Marc noticing. Each friend you save powers up your jump!</p>
+<p><b>Arrows / A D</b> to move, <b>Space / W / ↑</b> to jump.</p>
+<button id="go">Start</button></div></div>
+<div id="pad"><button id="bl">◀</button><button id="bj">⤒</button><button id="br">▶</button></div>
+<small>Tip: on Floor 3, stay off Marc's floor level.</small>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const L=[
+{n:'NCB 1st Floor: gather reagents',w:2300,bg:'#d9e4ec',
+pl:[[0,360,520],[600,360,380],[1060,360,480],[1640,360,660],[420,270,110],[900,265,110],[1560,275,100],[1800,270,120]],
+it:[[470,235,'Cholesterol'],[950,230,'Thioacetic acid'],[1840,235,'NaOH base']],
+en:[{t:'c',x:700,a:620,b:960,y:360},{t:'g',x:1150,a:1080,b:1520,y:360},{t:'c',x:1750,a:1660,b:2200,y:360},{t:'g',x:150,a:50,b:480,y:360}]},
+{n:'NCB 2nd Floor: the synthesis',w:2500,bg:'#e4dcc9',
+pl:[[0,360,400],[480,360,300],[860,360,300],[1240,360,400],[1720,360,300],[2100,360,400],[380,280,100],[700,250,100],[1100,270,100],[1560,260,110],[1980,270,100]],
+it:[[740,215,'TsCl (tosylate)'],[1590,225,'KSAc (thioacetate)'],[2010,235,'Deprotect: thiol-cholesterol!']],
+en:[{t:'c',x:520,a:490,b:770,y:360},{t:'g',x:900,a:870,b:1150,y:360},{t:'c',x:1280,a:1250,b:1630,y:360},{t:'g',x:1760,a:1730,b:2010,y:360},{t:'c',x:2140,a:2110,b:2480,y:360},{t:'g',x:200,a:20,b:390,y:360}]},
+{n:'NCB 3rd Floor: Marc\'s lab',w:2600,bg:'#d8c8dc',marc:1,
+pl:[[0,360,2600],[300,280,140],[530,255,120],[760,270,140],[990,250,160],[1250,260,150],[1490,250,150],[1730,265,150],[1970,270,160],[2220,260,140],[2450,265,130]],
+it:[],cap:[[1030,250,'Daniel','#2f6fb5','#15151a'],[2010,270,'Jordan','#3a9a5a','#5a3b25']],
+en:[]}];
+let S,keys={},cur=0,G,pl={};
+const SP=["..HHHHHH..",".HHHHHHHH.","HHSSSSSSHH","HHSESSESHH","HHSSSSSSHH","HHSSMMSSHH",".HHSSSSHH.",".HHSNNSHH.",".HCCCCCCH.","HCCCCCCCCH","HCCCCCCCCH",".CCCCCCCC.","..PPPPPP..","..PP..PP.."];
+function sprite(x,y,s,f,col){const pal={H:col.h,S:'#e8b89a',E:'#1a1a1a',M:'#c98080',N:'#d4af37',C:col.c,P:col.p};
+SP.forEach((r,j)=>{for(let i=0;i<10;i++){const ch=r[f?9-i:i];if(ch!='.'){ctx.fillStyle=pal[ch];ctx.fillRect(x+i*s,y+j*s,s,s);}}});}
+const CUR={h:'#3b2a24',c:'#f3ead8',p:'#4a5568'};
+function load(i){cur=i;G=L[i];S={x:40,y:250,vx:0,vy:0,g:false,f:0,hp:S?S.hp:3,inv:0,got:[],caps:S?S.caps:[],safe:{x:40,y:300},wr:0,seen:0,t:0,banner:180,mx:700,md:1};
+G.en.forEach(e=>{e.ox=e.x;e.d=1;});}
+function hurt(){if(S.inv>0)return;S.hp--;S.inv=100;S.vy=-7;if(S.hp<=0)over('Burnout! Too many classes and too much grading. Take a coffee break and try again.');}
+function over(t){S.dead=1;show('<h2>😵 Game over</h2><p>'+t+'</p><button id="go2">Retry</button>',()=>{S=null;load(0);});}
+function show(h,fn){const m=document.getElementById('msg');m.innerHTML=h;m.style.display='flex';m.querySelector('button').onclick=()=>{m.style.display='none';fn();};}
+document.getElementById('go').onclick=()=>{msg.style.display='none';S=null;load(0);};
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;if([' ','arrowup','arrowdown'].includes(e.key.toLowerCase()))e.preventDefault();});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+[['bl','arrowleft'],['br','arrowright'],['bj',' ']].forEach(([id,k])=>{const b=document.getElementById(id);
+b.onpointerdown=e=>{keys[k]=1;e.preventDefault();};b.onpointerup=b.onpointerleave=()=>keys[k]=0;});
+function step(){
+if(!S||S.dead||document.getElementById('msg').style.display=='flex')return;
+S.t++;if(S.banner>0)S.banner--;if(S.inv>0)S.inv--;
+const fr=S.caps.length,jp=11+fr*1.3;
+const l=keys['arrowleft']||keys['a'],r=keys['arrowright']||keys['d'];
+S.vx=(r?1:0)-(l?1:0);S.vx*=3.3;if(S.vx)S.f=S.vx<0;
+if((keys[' ']||keys['arrowup']||keys['w'])&&S.g){S.vy=-jp;S.g=false;}
+S.x=Math.max(0,Math.min(G.w-30,S.x+S.vx));
+const pb=S.y+42;S.vy+=.55;S.y+=S.vy;S.g=false;
+if(S.vy>=0)for(const p of G.pl){if(S.x+24>p[0]&&S.x<p[0]+p[2]&&pb<=p[1]+2&&S.y+42>=p[1]){S.y=p[1]-42;S.vy=0;S.g=true;S.safe={x:Math.max(p[0]+10,Math.min(S.x,p[0]+p[2]-40)),y:p[1]-44};}}
+if(S.y>470){hurt();if(!S.dead){S.x=S.safe.x;S.y=S.safe.y;S.vy=0;}}
+for(const e of G.en){e.x+=e.d*(e.t=='c'?1.2:1.7);if(e.x<e.a||e.x>e.b)e.d*=-1;
+const ey=e.y-36-(e.t=='g'?Math.abs(Math.sin(S.t/14+e.ox))*40:0);
+if(S.x+24>e.x&&S.x<e.x+36&&S.y+42>ey&&S.y<ey+36)hurt();e.cy=ey;}
+for(const it of G.it){if(!S.got.includes(it[2])&&Math.abs(S.x+12-it[0])<28&&Math.abs(S.y+20-it[1])<40)S.got.push(it[2]);}
+if(G.cap)for(const c of G.cap){if(!S.caps.includes(c[2])&&Math.abs(S.x-c[0])<40&&Math.abs(S.y+42-c[1])<30){S.caps.push(c[2]);S.banner=150;S.msgT=c[2]+' rescued! Friendship power: higher jumps!';}}
+if(G.marc){S.mx+=S.md*1.15;if(S.mx>2300||S.mx<500)S.md*=-1;
+const low=S.y+42>330,near=Math.abs(S.mx-S.x)<260&&(S.x-S.mx)*S.md>0;S.seen=low&&near;
+S.wr=Math.max(0,S.wr+(S.seen?1.1:-.4));if(S.wr>=100)over('Marc noticed! His wrath is... a lot of PARP.');}
+const ex=G.w-70,need=G.cap?G.cap.length:G.it.length,have=G.cap?S.caps.length:S.got.length;
+if(S.x>ex-20&&S.x<ex+40&&Math.abs(S.y+42-(G.cap?265:360))<60){
+if(have>=need){if(cur<2){load(cur+1);S.msgT=null;}else{S.dead=1;show('<h2>🎓 Master Curie!</h2><p>Daniel and Jordan are free, the thiol-cholesterol is made, and Curie graduates with her masters. The power of friendship (and a lot of silica) wins at JHU!</p><button>Play again</button>',()=>{S=null;load(0);});}}
+else{S.banner=2;S.hint=1;}}else S.hint=0;}
+function draw(){
+if(!S){ctx.fillStyle='#222';ctx.fillRect(0,0,800,400);return;}
+const cam=Math.max(0,Math.min(G.w-800,S.x-320));
+ctx.fillStyle=G.bg;ctx.fillRect(0,0,800,400);
+ctx.fillStyle='rgba(255,255,255,.5)';for(let i=0;i<G.w;i+=220){const x=i-cam*.5;ctx.fillRect(x,50,70,90);}
+ctx.save();ctx.translate(-cam,0);
+for(const p of G.pl){ctx.fillStyle='#8a6a4a';ctx.fillRect(p[0],p[1],p[2],p[1]>340?60:12);ctx.fillStyle='#b8946c';ctx.fillRect(p[0],p[1],p[2],4);}
+ctx.font='bold 11px sans-serif';ctx.textAlign='center';
+for(const it of G.it){if(S.got.includes(it[2]))continue;ctx.fillStyle='#3aa0ff';ctx.beginPath();ctx.arc(it[0],it[1],11,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.fillText('⚗',it[0],it[1]+4);ctx.fillStyle='#222';ctx.fillText(it[2],it[0],it[1]-18);}
+for(const e of G.en){const y=e.cy;if(e.t=='c'){ctx.fillStyle='#c0392b';ctx.fillRect(e.x,y,36,36);ctx.fillStyle='#fff';ctx.fillText('CLASS',e.x+18,y+21);}
+else{ctx.fillStyle='#fff';ctx.fillRect(e.x,y,36,36);ctx.strokeStyle='#999';ctx.strokeRect(e.x,y,36,36);ctx.fillStyle='#d22';ctx.fillText('F-',e.x+18,y+15);ctx.fillText('GRADE',e.x+18,y+29);}}
+if(G.cap)for(const c of G.cap){const free=S.caps.includes(c[2]);const x=free?S.x-30-S.caps.indexOf(c[2])*26*(S.f?-1:1)*-1:c[0];const y=free?S.y:c[1]-42;
+sprite(x,y,3,0,{h:c[4],c:c[3],p:'#333'});ctx.fillStyle='#222';ctx.fillText(c[2],x+15,y-6);
+if(!free){ctx.strokeStyle='#444';ctx.lineWidth=3;for(let i=0;i<5;i++)ctx.strokeRect(x-6+i*9,y-6,2,52);}}
+if(G.marc){const mx=S.mx,my=360-54;if(S.seen){ctx.fillStyle='rgba(255,60,60,.18)';ctx.beginPath();ctx.moveTo(mx+15,my+10);ctx.lineTo(mx+15+S.md*260,my-60);ctx.lineTo(mx+15+S.md*260,my+60);ctx.fill();}
+ctx.fillStyle='#6a2c91';ctx.fillRect(mx,my+20,32,34);ctx.fillStyle='#e8b89a';ctx.fillRect(mx+4,my,24,22);ctx.fillStyle='#ddd';ctx.fillRect(mx+2,my-4,28,6);
+ctx.fillStyle='#c00';ctx.fillRect(mx+8+(S.md>0?6:0),my+9,4,4);ctx.fillRect(mx+18+(S.md>0?6:0)-6,my+9,4,4);ctx.fillStyle='#222';ctx.fillText('Marc (PI)',mx+16,my-10);}
+// exit
+ctx.fillStyle='#2e7d32';ctx.fillRect(G.w-70,(G.cap?265:360)-60,50,60);ctx.fillStyle='#fff';ctx.fillText(cur<2?'STAIRS':'GRAD!',G.w-45,(G.cap?265:360)-30);
+if(!(S.inv>0&&S.t%6<3))sprite(S.x,S.y,3,S.f,CUR);
+ctx.restore();
+ctx.textAlign='left';ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,800,30);ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';
+ctx.fillText('♥'.repeat(Math.max(0,S.hp))+'   '+G.n,10,20);
+const need=G.cap?'Friends '+S.caps.length+'/2':'Reagents '+S.got.length+'/3';ctx.textAlign='right';ctx.fillText(need,790,20);ctx.textAlign='left';
+if(G.marc){ctx.fillStyle='#333';ctx.fillRect(300,8,150,14);ctx.fillStyle=S.wr>70?'#f33':'#fa3';ctx.fillRect(300,8,150*S.wr/100,14);ctx.fillStyle='#fff';ctx.fillText("Marc's wrath",305,19);}
+if(S.banner>0){ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(100,340,600,40);ctx.fillStyle='#fff';ctx.textAlign='center';
+ctx.fillText(S.hint?'Not yet! Finish the objectives first.':(S.msgT||G.n),400,365);ctx.textAlign='left';}
+}
+function loop(){step();draw();requestAnimationFrame(loop);}loop();
+</script></body></html>
